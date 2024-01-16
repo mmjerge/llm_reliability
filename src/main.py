@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+"""This module downloads opensource models from Hugging Face.
+   Adapted from NeurIPS 2023 TDC challenge download_data.py script"""
+
 import os
 import argparse
 from huggingface_hub import snapshot_download
