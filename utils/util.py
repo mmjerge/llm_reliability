@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import pandas as pd
 import numpy as np
 import pandas as pd
@@ -18,6 +19,8 @@ class BaseAgent:
         self.prompt = prompt
 
 class GPT35Agent(BaseAgent):
+    #TODO add citation for adaptation of work in https://github.com/patrickrchao/JailbreakingLLMs/blob/main/language_models.py
+
     """GPT 3.5 Turbo Agent Class
 
     Parameters
@@ -25,6 +28,11 @@ class GPT35Agent(BaseAgent):
     BaseAgent : class
         Super class for all agents
     """
+    API_RETRY_SLEEP = 10
+    API_RESPONSE_ERROR = "$ERROR$"
+    API_QUERY_SLEEP = 0.5
+    API_MAX_RETRY = 5
+    API_TIMEOUT = 20.0
     def __init__(self, model_name: str, prompt: str, token=None) -> None:
         """_summary_
 
@@ -53,22 +61,29 @@ class GPT35Agent(BaseAgent):
         _type_
             _description_
         """
-        try:
-            chat = self.client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "user",
-                        "content": message
-                    }
-                ],
-                model=self.model_name,
-                logprobs=True, 
-                max_tokens=200,
-                temperature=.5
-            )
-            return chat
-        except Exception as e:
-            print(f"Failed to initialize OpenAI client: {e}")
+        response = self.API_RESPONSE_ERROR
+        for _ in range(self.API_MAX_RETRY):
+            try:
+                chat = self.client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": message
+                        }
+                    ],
+                    model=self.model_name,
+                    logprobs=True, 
+                    max_tokens=200,
+                    temperature=.5, 
+                    timeout=self.API_TIMEOUT
+                )
+                response = chat
+                break
+            except Exception as e:
+                print(f"Failed to initialize OpenAI client: {e}")
+                time.sleep(self.API_RETRY_SLEEP)
+            time.sleep(self.API_RETRY_SLEEP)
+        return response
 
     def give_response(self, chat) -> str:
         """_summary_
@@ -139,7 +154,9 @@ class GPT35Agent(BaseAgent):
         token : _type_
             _description_
         """
-        tx.run("MERGE (t:Token {name: $token})", token=token)
+        tx.run("MERGE (t:Token {name: $token, model: $model})", 
+               token=token, 
+               model=self.model_name)
 
     def create_weighted_relationship(self, tx, token1, token2, weight):
         """_summary_
