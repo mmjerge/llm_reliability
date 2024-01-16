@@ -13,8 +13,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 class BaseAgent:
     """Base class for creating different llm baesd agents
     """
-    def __init__(self, name: str, prompt: str, token=None) -> None:
-        self.name = name
+    def __init__(self, model_name: str, prompt: str, token=None) -> None:
+        self.model_name = model_name
         self.prompt = prompt
 
 class GPT35Agent(BaseAgent):
@@ -25,7 +25,7 @@ class GPT35Agent(BaseAgent):
     BaseAgent : class
         Super class for all agents
     """
-    def __init__(self, name: str, prompt: str, token=None) -> None:
+    def __init__(self, model_name: str, prompt: str, token=None) -> None:
         """_summary_
 
         Parameters
@@ -37,9 +37,8 @@ class GPT35Agent(BaseAgent):
         token : _type_, optional
             _description_, by default None
         """
-        super().__init__(name, prompt, token)
+        super().__init__(model_name, prompt, token)
         self.client = OpenAI(api_key=token)
-        self.model = "gpt-3.5-turbo"
 
     def start_chat(self, message: str):
         """_summary_
@@ -62,7 +61,7 @@ class GPT35Agent(BaseAgent):
                         "content": message
                     }
                 ],
-                model=self.model,
+                model=self.model_name,
                 logprobs=True, 
                 max_tokens=200,
                 temperature=.5
@@ -161,8 +160,8 @@ class GPT35Agent(BaseAgent):
                 
 
 class GPT4Agent(BaseAgent):
-    def __init__(self, name: str, prompt: str, token=None) -> None:
-        super().__init__(name, prompt, token)
+    def __init__(self, model_name: str, prompt: str, token=None) -> None:
+        super().__init__(model_name, prompt, token)
 
     def start_chat(self, message: str):
         try:
@@ -173,7 +172,7 @@ class GPT4Agent(BaseAgent):
                         "content": message
                     }
                 ],
-                model=self.model,
+                model=self.model_name,
                 logprobs=True, 
                 max_tokens=200,
                 temperature=.5
