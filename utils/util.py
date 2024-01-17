@@ -121,7 +121,7 @@ class GPT35Agent(BaseAgent):
         token_dict = {count:value.token for count, value in enumerate(chat.choices[0].logprobs.content)} 
         return token_dict
     
-    def get_nlp_properties(self, content) -> Dict[int, str, Union[str, str]]:
+    def get_nlp_properties(self, content):
         """_summary_
 
         Parameters
@@ -220,10 +220,9 @@ class MicrosoftAgent(BaseAgent):
         super().__init__(model_name, prompt, token)
         self.cuda_device = cuda_device
 
-    def tokenize(cuda_device):
-        device = (lambda: (cuda := torch.cuda.is_available(), 
-                           torch.device(cuda_device) if cuda else torch.device('cpu')()))[-1]
-        
+    def tokenize(self):
+        device = (lambda: torch.cuda.device(self.cuda_device) if torch.cuda.is_available() else torch.device("cpu"))()
+        return device
 
 class MistralAgent(BaseAgent):
     def __init__(self, model_name: str, prompt: str, token=None) -> None:
