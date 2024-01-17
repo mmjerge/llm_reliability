@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.distributed.autograd as dist_autograd
+from torch.nn.parallel import DistributedDataParallel as DDP
 import neo4j
 import spacy
 from typing import Dict, Union, Optional
@@ -217,7 +219,11 @@ class MicrosoftAgent(BaseAgent):
                  cuda_device: str="cuda") -> None:
         super().__init__(model_name, prompt, token)
         self.cuda_device = cuda_device
-    
+
+    def tokenize(cuda_device):
+        device = (lambda: (cuda := torch.cuda.is_available(), 
+                           torch.device(cuda_device) if cuda else torch.device('cpu')()))[-1]
+        
 
 class MistralAgent(BaseAgent):
     def __init__(self, model_name: str, prompt: str, token=None) -> None:
