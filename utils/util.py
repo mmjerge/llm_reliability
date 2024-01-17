@@ -220,9 +220,14 @@ class MicrosoftAgent(BaseAgent):
         super().__init__(model_name, prompt, token)
         self.cuda_device = cuda_device
 
+    def get_devices(self):
+        cuda = torch.cuda.is_available()
+        device = (lambda: torch.cuda.device(self.cuda_device) if cuda else torch.device("cpu"))()
+        num_gpus = (lambda: torch.cuda.device_count() if cuda else 0)()
+        return device, num_gpus
+
     def tokenize(self):
-        device = (lambda: torch.cuda.device(self.cuda_device) if torch.cuda.is_available() else torch.device("cpu"))()
-        return device
+        pass
 
 class MistralAgent(BaseAgent):
     def __init__(self, model_name: str, prompt: str, token=None) -> None:
