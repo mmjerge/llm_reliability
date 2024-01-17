@@ -5,18 +5,20 @@ import pandas as pd
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn as nn
 import neo4j
 import spacy
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 class BaseAgent:
     """Base class for creating different llm baesd agents
     """
-    def __init__(self, model_name: str, prompt: str, token=None) -> None:
+    def __init__(self, model_name: str, prompt: str, token: Optional[str]=None) -> None:
         self.model_name = model_name
         self.prompt = prompt
+        self.token = token
 
 class GPT35Agent(BaseAgent):
     #TODO add citation for adaptation of work in https://github.com/patrickrchao/JailbreakingLLMs/blob/main/language_models.py
@@ -33,7 +35,7 @@ class GPT35Agent(BaseAgent):
     API_QUERY_SLEEP = 0.5
     API_MAX_RETRY = 5
     API_TIMEOUT = 20.0
-    def __init__(self, model_name: str, prompt: str, token=None) -> None:
+    def __init__(self, model_name: str, prompt: str, token: Optional[str]=None) -> None:
         """_summary_
 
         Parameters
@@ -177,7 +179,7 @@ class GPT35Agent(BaseAgent):
                 
 
 class GPT4Agent(BaseAgent):
-    def __init__(self, model_name: str, prompt: str, token=None) -> None:
+    def __init__(self, model_name: str, prompt: str, token: Optional[str]=None) -> None:
         super().__init__(model_name, prompt, token)
 
     def start_chat(self, message: str):
@@ -200,20 +202,26 @@ class GPT4Agent(BaseAgent):
 
 
 class LlamaBaseAgent(BaseAgent):
-    def __init__(self, name: str, prompt: str, token=None) -> None:
-        super().__init__(name, prompt, token)
+    def __init__(self, model_name: str, prompt: str, token: Optional[str]=None,) -> None:
+        super().__init__(model_name, prompt, token)
 
 class LlamaLargeAgent(BaseAgent):
-    def __init__(self, name: str, prompt: str, token=None) -> None:
-        super().__init__(name, prompt, token)
+    def __init__(self, model_name: str, prompt: str, token: Optional[str]=None) -> None:
+        super().__init__(model_name, prompt, token)
 
 class MicrosoftAgent(BaseAgent):
-    def __init__(self, name: str, prompt: str, token=None) -> None:
-        super().__init__(name, prompt, token)
+    def __init__(self, 
+                 model_name: str, 
+                 prompt: str, 
+                 token: Optional[str]=None,
+                 cuda_device: str="cuda") -> None:
+        super().__init__(model_name, prompt, token)
+        self.cuda_device = cuda_device
+    
 
 class MistralAgent(BaseAgent):
-    def __init__(self, name: str, prompt: str, token=None) -> None:
-        super().__init__(name, prompt, token)
+    def __init__(self, model_name: str, prompt: str, token=None) -> None:
+        super().__init__(model_name, prompt, token)
         
 def match_model(model):
     match model:
