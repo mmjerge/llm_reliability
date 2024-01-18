@@ -1,4 +1,5 @@
 import os
+import argparse
 import json
 import time
 import pandas as pd
@@ -6,7 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-import torch.distributed.autograd as dist_autograd
+import torch.distributed as distributed
 from torch.nn.parallel import DistributedDataParallel as DDP
 import neo4j
 import spacy
@@ -17,10 +18,35 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 class BaseAgent:
     """Base class for creating different llm baesd agents
     """
-    def __init__(self, model_name: str, prompt: str, token: Optional[str]=None) -> None:
+    def __init__(self, model_name: str, 
+                 prompt: str,
+                 neo4j_uri: str,
+                 neo4j_username: str,
+                 neo4j_password: str,
+                 token: Optional[str]=None,) -> None:
         self.model_name = model_name
         self.prompt = prompt
+        self.neo4j_uri = neo4j_uri
+        self.neo4j_username = neo4j_username
+        self.neo4j_password = neo4j_password
         self.token = token
+
+        # To use with a "with" block
+        def __enter__(self):
+            try:
+                auth = (self.neo4j_username, self.neo4j_password)
+                self.driver = neo4j.GraphDatabase.driver(self.neo4j_uri, auth=auth)
+                return self.driver
+            except Exception as e:
+                # If there is a connection error, clean up
+                if self.driver is not None:
+                    self.driver.close()
+                raise e
+        
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if self.driver is not None:
+                self.driver.close()
+
 
 class GPT35Agent(BaseAgent):
     #TODO add citation for adaptation of work in https://github.com/patrickrchao/JailbreakingLLMs/blob/main/language_models.py
@@ -216,9 +242,11 @@ class MicrosoftAgent(BaseAgent):
                  model_name: str, 
                  prompt: str, 
                  token: Optional[str]=None,
-                 cuda_device: str="cuda") -> None:
+                 cuda_device: str="cuda",
+                 cache_path: Optional[str]=None) -> None:
         super().__init__(model_name, prompt, token)
         self.cuda_device = cuda_device
+        self.cache_path = cache_path
 
     def get_devices(self):
         cuda = torch.cuda.is_available()
@@ -226,8 +254,19 @@ class MicrosoftAgent(BaseAgent):
         num_gpus = (lambda: torch.cuda.device_count() if cuda else 0)()
         return device, num_gpus
 
-    def tokenize(self):
-        pass
+    def tokenize(self, get_devices):
+        devices = get_devices()
+        model = AutoModelForCausalLM.from_pretrained(self.model_name, 
+                                                     torch_dtype="auto", 
+                                                     trust_remote_code=True,
+                                                     cache_dir=self.cache_path)
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
+        if devices[1] > 1:
+            torch.distributed.init_process_group(backend='nccl')
+            device = torch.device("cuda", rank)
+
+
+
 
 class MistralAgent(BaseAgent):
     def __init__(self, model_name: str, prompt: str, token=None) -> None:
