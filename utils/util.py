@@ -16,21 +16,22 @@ from typing import Dict, Union, Optional
 from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+
+#TODO Make Abstract class and have base agent inherit from that
+#TODO Add additional classes for Claude and Google LLMs
+
 class BaseAgent():
     """Base class for creating different llm baesd agents
     """
-    def __init__(self, model_name: str, 
-                 prompt: str,
+    def __init__(self, 
+                 model_name: str,
                  neo4j_uri: str,
                  neo4j_username: str,
-                 neo4j_password: str,
-                 token: Optional[str]=None,) -> None:
+                 neo4j_password: str) -> None:
         self.model_name = model_name
-        self.prompt = prompt
         self.neo4j_uri = neo4j_uri
         self.neo4j_username = neo4j_username
         self.neo4j_password = neo4j_password
-        self.token = token
 
     # To use with a "with" block
     def __enter__(self):
@@ -64,20 +65,28 @@ class GPT35Agent(BaseAgent):
     API_QUERY_SLEEP = 0.5
     API_MAX_RETRY = 5
     API_TIMEOUT = 20.0
-    def __init__(self, model_name: str, prompt: str, token: Optional[str]=None) -> None:
+    API_KEY = os.getenv("OPENAI_API_KEY")
+    def __init__(self, 
+                 model_name: str, 
+                 neo4j_uri: str, 
+                 neo4j_username: str, 
+                 neo4j_password: str,
+                 api_key=API_KEY) -> None:
         """_summary_
 
         Parameters
         ----------
-        name : str
+        model_name : str
             _description_
-        prompt : str
+        neo4j_uri : str
             _description_
-        token : _type_, optional
-            _description_, by default None
+        neo4j_username : str
+            _description_
+        neo4j_password : str
+            _description_
         """
-        super().__init__(model_name, prompt, token)
-        self.client = OpenAI(api_key=token)
+        super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
+        self.client = OpenAI(api_key=api_key)
 
     def start_chat(self, message: str):
         """_summary_
@@ -208,8 +217,20 @@ class GPT35Agent(BaseAgent):
                 
 
 class GPT4Agent(BaseAgent):
-    def __init__(self, model_name: str, prompt: str, token: Optional[str]=None) -> None:
-        super().__init__(model_name, prompt, token)
+    API_RETRY_SLEEP = 10
+    API_RESPONSE_ERROR = "$ERROR$"
+    API_QUERY_SLEEP = 0.5
+    API_MAX_RETRY = 5
+    API_TIMEOUT = 20.0
+    API_KEY = os.getenv("OPENAI_API_KEY")
+    def __init__(self, 
+                 model_name: str, 
+                 neo4j_uri: str, 
+                 neo4j_username: str, 
+                 neo4j_password: str,
+                 api_key=API_KEY) -> None:
+        super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
+        self.client = OpenAI(api_key=api_key)
 
     def start_chat(self, message: str):
         try:
@@ -231,21 +252,39 @@ class GPT4Agent(BaseAgent):
 
 
 class LlamaBaseAgent(BaseAgent):
-    def __init__(self, model_name: str, prompt: str, token: Optional[str]=None,) -> None:
-        super().__init__(model_name, prompt, token)
-
-class LlamaLargeAgent(BaseAgent):
-    def __init__(self, model_name: str, prompt: str, token: Optional[str]=None) -> None:
-        super().__init__(model_name, prompt, token)
-
-class MicrosoftAgent(BaseAgent):
     def __init__(self, 
                  model_name: str, 
-                 prompt: str, 
-                 token: Optional[str]=None,
+                 neo4j_uri: str, 
+                 neo4j_username: str, 
+                 neo4j_password: str,
                  cuda_device: str="cuda",
                  cache_path: Optional[str]=None) -> None:
-        super().__init__(model_name, prompt, token)
+        super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
+        self.cuda_device = cuda_device
+        self.cache_path = cache_path
+
+class LlamaLargeAgent(BaseAgent):
+    def __init__(self, 
+                 model_name: str, 
+                 neo4j_uri: str, 
+                 neo4j_username: str, 
+                 neo4j_password: str,
+                 cuda_device: str="cuda",
+                 cache_path: Optional[str]=None) -> None:
+        super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
+        self.cuda_device = cuda_device
+        self.cache_path = cache_path
+
+class MicrosoftAgent(BaseAgent):
+
+    def __init__(self, 
+                 model_name: str, 
+                 neo4j_uri: str, 
+                 neo4j_username: str, 
+                 neo4j_password: str,
+                 cuda_device: str="cuda",
+                 cache_path: Optional[str]=None) -> None:
+        super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
         self.cuda_device = cuda_device
         self.cache_path = cache_path
 
