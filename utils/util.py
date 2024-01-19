@@ -1,5 +1,6 @@
 import os
-import argparse
+from abc import ABCMeta, abstractmethod
+import pyarrow.parquet as pq
 import json
 import time
 import pandas as pd
@@ -15,7 +16,7 @@ from typing import Dict, Union, Optional
 from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-class BaseAgent:
+class BaseAgent():
     """Base class for creating different llm baesd agents
     """
     def __init__(self, model_name: str, 
@@ -31,21 +32,21 @@ class BaseAgent:
         self.neo4j_password = neo4j_password
         self.token = token
 
-        # To use with a "with" block
-        def __enter__(self):
-            try:
-                auth = (self.neo4j_username, self.neo4j_password)
-                self.driver = neo4j.GraphDatabase.driver(self.neo4j_uri, auth=auth)
-                return self.driver
-            except Exception as e:
-                # If there is a connection error, clean up
-                if self.driver is not None:
-                    self.driver.close()
-                raise e
-        
-        def __exit__(self, exc_type, exc_val, exc_tb):
+    # To use with a "with" block
+    def __enter__(self):
+        try:
+            auth = (self.neo4j_username, self.neo4j_password)
+            self.driver = neo4j.GraphDatabase.driver(self.neo4j_uri, auth=auth)
+            return self.driver
+        except Exception as e:
+            # If there is a connection error, this cleans up resources
             if self.driver is not None:
                 self.driver.close()
+            raise e
+  
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.driver is not None:
+            self.driver.close()
 
 
 class GPT35Agent(BaseAgent):
@@ -271,6 +272,27 @@ class MicrosoftAgent(BaseAgent):
 class MistralAgent(BaseAgent):
     def __init__(self, model_name: str, prompt: str, token=None) -> None:
         super().__init__(model_name, prompt, token)
+
+def read_questions(file, batch_size=1000):
+    """_summary_
+
+    Parameters
+    ----------
+    file : _type_
+        _description_
+    batch_size : int, optional
+        _description_, by default 1000
+
+    Yields
+    ------
+    _type_
+        _description_
+    """
+    parquet_file = pq.ParquetFile(file)
+    for batch in parquet_file.iter_batches(batch_size=batch_size, columns=['question']):
+        table = batch.to_pandas()
+        for question in table['question']:
+            yield question
         
 def match_model(model):
     match model:
