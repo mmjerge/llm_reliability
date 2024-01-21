@@ -106,14 +106,19 @@ class GeminiAgent(BaseAgent):
                     model_name = self.model_name
                 )
                 chat = model.start_chat()
-                response = chat.send_message(prompt)
+                response = chat.send_message(prompt,
+                                             temperature=.5
+                                             )
                 break
             except Exception as e:
                 print(f"Failed to initialize OpenAI client: {e}")
                 time.sleep(self.API_RETRY_SLEEP)
             time.sleep(self.API_RETRY_SLEEP)
         return response
-        
+    
+    def count_tokens(self, response):
+        content = response._raw_response.usage_metadata
+        return content
 
 class GPT35Agent(BaseAgent):
     #TODO add citation for adaptation of work in https://github.com/patrickrchao/JailbreakingLLMs/blob/main/language_models.py
