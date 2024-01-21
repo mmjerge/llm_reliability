@@ -15,7 +15,7 @@ import spacy
 from typing import Dict, Union, Optional
 from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
+import google.generativeai as genai
 
 #TODO Add additional classes for Claude and Google LLMs
 
@@ -60,6 +60,60 @@ class BaseAgent(Connection):
         if self.driver is not None:
             self.driver.close()
 
+class GeminiAgent(BaseAgent):
+    """_summary_
+
+    Parameters
+    ----------
+    BaseAgent : _type_
+        _description_
+    """
+    API_RETRY_SLEEP = 10
+    API_RESPONSE_ERROR = "$ERROR$"
+    API_QUERY_SLEEP = 1.0
+    API_MAX_RETRY = 5
+    API_TIMEOUT = 20.0
+    API_KEY = os.getenv("GEMINI_API_KEY")
+    def __init__(self, 
+                 model_name: str, 
+                 neo4j_uri: str, 
+                 neo4j_username: str, 
+                 neo4j_password: str,
+                 api_key=API_KEY) -> None:
+        """_summary_
+
+        Parameters
+        ----------
+        model_name : str
+            _description_
+        neo4j_uri : str
+            _description_
+        neo4j_username : str
+            _description_
+        neo4j_password : str
+            _description_
+        api_key : _type_, optional
+            _description_, by default API_KEY
+        """
+        super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
+        self.client = genai.configure(api_key=api_key)
+    
+    def start_chat(self, prompt: str):
+        response = self.API_RESPONSE_ERROR
+        for _ in range(self.API_MAX_RETRY):
+            try:
+                model = genai.GenerativeModel(
+                    model_name = self.model_name
+                )
+                chat = model.start_chat()
+                response = chat.send_message(prompt)
+                break
+            except Exception as e:
+                print(f"Failed to initialize OpenAI client: {e}")
+                time.sleep(self.API_RETRY_SLEEP)
+            time.sleep(self.API_RETRY_SLEEP)
+        return response
+        
 
 class GPT35Agent(BaseAgent):
     #TODO add citation for adaptation of work in https://github.com/patrickrchao/JailbreakingLLMs/blob/main/language_models.py
