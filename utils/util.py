@@ -1,5 +1,5 @@
 import os
-from abc import ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 import pyarrow.parquet as pq
 import json
 import time
@@ -17,21 +17,32 @@ from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-#TODO Make Abstract class and have base agent inherit from that
 #TODO Add additional classes for Claude and Google LLMs
 
-class BaseAgent():
+class Connection(ABC):
+    @abstractmethod
+    def __enter__(self):
+        pass
+    
+    @abstractmethod
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class BaseAgent(Connection):
     """Base class for creating different llm baesd agents
     """
-    def __init__(self, 
+    def __init__(self,
                  model_name: str,
                  neo4j_uri: str,
                  neo4j_username: str,
                  neo4j_password: str) -> None:
+        super().__init__()
         self.model_name = model_name
         self.neo4j_uri = neo4j_uri
         self.neo4j_username = neo4j_username
         self.neo4j_password = neo4j_password
+        self.driver = None
 
     # To use with a "with" block
     def __enter__(self):
@@ -88,7 +99,7 @@ class GPT35Agent(BaseAgent):
         super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
         self.client = OpenAI(api_key=api_key)
 
-    def start_chat(self, message: str):
+    def start_chat(self, prompt: str):
         """_summary_
 
         Parameters
@@ -108,7 +119,7 @@ class GPT35Agent(BaseAgent):
                     messages=[
                         {
                             "role": "user",
-                            "content": message
+                            "content": prompt
                         }
                     ],
                     model=self.model_name,
@@ -232,13 +243,13 @@ class GPT4Agent(BaseAgent):
         super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
         self.client = OpenAI(api_key=api_key)
 
-    def start_chat(self, message: str):
+    def start_chat(self, prompt: str):
         try:
             chat = self.client.chat.completions.create(
                 messages=[
                     {
                         "role": "user",
-                        "content": message
+                        "content": prompt
                     }
                 ],
                 model=self.model_name,
@@ -282,7 +293,7 @@ class MicrosoftAgent(BaseAgent):
                  neo4j_uri: str, 
                  neo4j_username: str, 
                  neo4j_password: str,
-                 cuda_device: str="cuda",
+                 cuda_device: str="0",
                  cache_path: Optional[str]=None) -> None:
         super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
         self.cuda_device = cuda_device
@@ -290,27 +301,55 @@ class MicrosoftAgent(BaseAgent):
 
     def get_devices(self):
         cuda = torch.cuda.is_available()
-        device = (lambda: torch.cuda.device(self.cuda_device) if cuda else torch.device("cpu"))()
+        device = (lambda: torch.device(f"cuda:{self.cuda_device}" if cuda else "cpu"))()
         num_gpus = (lambda: torch.cuda.device_count() if cuda else 0)()
         return device, num_gpus
 
-    def tokenize(self, get_devices):
-        devices = get_devices()
+    def tokenize(self, prompt: str):
+        torch.set_default_device("cuda")
         model = AutoModelForCausalLM.from_pretrained(self.model_name, 
                                                      torch_dtype="auto", 
                                                      trust_remote_code=True,
                                                      cache_dir=self.cache_path)
         tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
-        if devices[1] > 1:
-            torch.distributed.init_process_group(backend='nccl')
-            device = torch.device("cuda", rank)
-
-
-
+        inputs = tokenizer(prompt, return_tensors="pt", return_attention_mask=False)
+        outputs = model.generate(**inputs)
+        text = tokenizer.batch_decode(outputs)[0]
+        return text
+        # torch.set_default_device("cuda")
+        # if self.get_devices()[1] >= 1:
+        #     # torch.distributed.init_process_group(backend='nccl')
+        #     # rank = distributed.get_rank()
+        #     # world_size = distributed.get_world_size()
+        #     # print(f"World size: {world_size}")
+        #     device, _ = self.get_devices()
+        #     torch.cuda.set_device(device)
+        #     model.to(device)
+        #     # model = DDP(model, device_ids=[rank])
+        #     inputs = tokenizer(prompt, return_tensors="pt")
+        #     input_ids = inputs['input_ids']
+        #     with torch.no_grad():
+        #         generated_outputs = model.generate(input_ids, max_length=max_length)
+        #         generated_text = tokenizer.decode(generated_outputs[0], skip_special_tokens=True)
+        #     combined_text = prompt + generated_text
+        #     combined_inputs = tokenizer.encode(combined_text, return_tensors="pt")
+        #     with torch.no_grad():
+        #         outputs = model(combined_inputs, labels=combined_inputs)
+        #         logits = outputs.logits
+        #     probabilities = torch.nn.functional.softmax(logits, dim=-1)
+        #     log_probabilities = torch.log(probabilities)
+        #     tokens = tokenizer.convert_ids_to_tokens(combined_inputs[0])
+        #     log_probs_dict = {token: log_prob.item() for token, log_prob in zip(tokens, log_probabilities[0])}
+        #     torch.distributed.destroy_process_group()
+        #     return generated_text, log_probs_dict
 
 class MistralAgent(BaseAgent):
-    def __init__(self, model_name: str, prompt: str, token=None) -> None:
-        super().__init__(model_name, prompt, token)
+    def __init__(self, 
+                 model_name: str, 
+                 neo4j_uri: str, 
+                 neo4j_username: str, 
+                 neo4j_password: str) -> None:
+        super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
 
 def read_questions(file, batch_size=1000):
     """_summary_
