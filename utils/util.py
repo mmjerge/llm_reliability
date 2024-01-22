@@ -17,8 +17,6 @@ from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import google.generativeai as genai
 
-#TODO Add additional classes for Claude and Google LLMs
-
 class Connection(ABC):
     @abstractmethod
     def __enter__(self):
@@ -106,9 +104,7 @@ class GeminiAgent(BaseAgent):
                     model_name = self.model_name
                 )
                 chat = model.start_chat()
-                response = chat.send_message(prompt,
-                                             temperature=.5
-                                             )
+                response = chat.send_message(prompt)
                 break
             except Exception as e:
                 print(f"Failed to initialize OpenAI client: {e}")
@@ -283,10 +279,18 @@ class GPT35Agent(BaseAgent):
             MERGE (t1)-[r:NEXT]->(t2)
             ON CREATE SET r.weight = $weight
             ON MATCH SET r.weight = $weight
-        """, token1=token1, token2=token2, weight=weight)
-                
+        """, token1=token1, token2=token2, weight=weight)              
 
 class GPT4Agent(BaseAgent):
+    #TODO add citation for adaptation of work in https://github.com/patrickrchao/JailbreakingLLMs/blob/main/language_models.py
+
+    """GPT 3.5 Turbo Agent Class
+
+    Parameters
+    ----------
+    BaseAgent : class
+        Super class for all agents
+    """
     API_RETRY_SLEEP = 10
     API_RESPONSE_ERROR = "$ERROR$"
     API_QUERY_SLEEP = 0.5
@@ -299,26 +303,74 @@ class GPT4Agent(BaseAgent):
                  neo4j_username: str, 
                  neo4j_password: str,
                  api_key=API_KEY) -> None:
+        """_summary_
+
+        Parameters
+        ----------
+        model_name : str
+            _description_
+        neo4j_uri : str
+            _description_
+        neo4j_username : str
+            _description_
+        neo4j_password : str
+            _description_
+        """
         super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
         self.client = OpenAI(api_key=api_key)
 
     def start_chat(self, prompt: str):
-        try:
-            chat = self.client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                model=self.model_name,
-                logprobs=True, 
-                max_tokens=200,
-                temperature=.5
-            )
-            return chat
-        except Exception as e:
-            print(f"Failed to initialize OpenAI client: {e}")
+        """_summary_
+
+        Parameters
+        ----------
+        message : str
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        response = self.API_RESPONSE_ERROR
+        for _ in range(self.API_MAX_RETRY):
+            try:
+                chat = self.client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ],
+                    model=self.model_name,
+                    logprobs=True, 
+                    max_tokens=200,
+                    temperature=.5, 
+                    timeout=self.API_TIMEOUT
+                )
+                response = chat
+                break
+            except Exception as e:
+                print(f"Failed to initialize OpenAI client: {e}")
+                time.sleep(self.API_RETRY_SLEEP)
+            time.sleep(self.API_RETRY_SLEEP)
+        return response
+
+    def give_response(self, chat) -> str:
+        """_summary_
+
+        Parameters
+        ----------
+        chat : _type_
+            _description_
+
+        Returns
+        -------
+        str
+            _description_
+        """
+        content = chat.choices[0].message.content
+        return content
 
 
 class LlamaBaseAgent(BaseAgent):
