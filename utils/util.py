@@ -32,6 +32,18 @@ def extract_tokens(data):
                     for token in inner_dict.keys():
                         yield token
 
+def extract_token_logprob_pairs(data):
+    if isinstance(data, dict):
+        for value in data.values():
+            yield from extract_token_logprob_pairs(value)
+    elif isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict) and len(item) == 1:
+                inner_dict = next(iter(item.values()))
+                if isinstance(inner_dict, dict):
+                    for token, logprob in inner_dict.items():
+                        yield (token, logprob)
+
 class Connection(ABC):
     @abstractmethod
     def __enter__(self):
@@ -353,7 +365,21 @@ class GPT35Agent(BaseAgent):
             MERGE (t1)-[r:NEXT]->(t2)
             ON CREATE SET r.weight = $weight
             ON MATCH SET r.weight = $weight
-        """, token1=token1, token2=token2, weight=weight)              
+        """, token1=token1, token2=token2, weight=weight)
+
+    def create_graph(self, driver, truthfulqa_tokens_dict):
+        with driver.session() as session:
+            tokens_logprobs_list = list(extract_token_logprob_pairs(truthfulqa_tokens_dict))
+
+            # Create nodes for each token
+            for token, logprob in tokens_logprobs_list:
+                session.execute_write(self.create_token_node, token)
+
+            # Create weighted relationships between consecutive tokens
+            for i in range(len(tokens_logprobs_list) - 1):
+                token1, _ = tokens_logprobs_list[i]
+                token2, weight = tokens_logprobs_list[i + 1]
+                session.execute_write(self.create_weighted_relationship, token1, token2, weight)              
 
 class GPT4Agent(BaseAgent):
     #TODO add citation for adaptation of work in https://github.com/patrickrchao/JailbreakingLLMs/blob/main/language_models.py
@@ -696,20 +722,5 @@ def match_model(model):
             pass
         case _:
             pass
-
-#TODO CREATE A WAY TO EXTRACT TUPLES RATHER THAN TOKENS
-def create_graph(driver, truthfulqa_tokens_dict):
-    with driver.session() as session:
-        tokens_list = list(extract_tokens(truthfulqa_tokens_dict))
-        for token in tokens_list:
-            session.execute_write(create_token_node, token)
-
-            # Create weighted relationships between consecutive tokens
-            tokens_list = list(tokens.keys())
-            for i in range(len(tokens_list) - 1):
-                token1 = tokens_list[i]
-                token2 = tokens_list[i + 1]
-                weight = tokens[token2]  # assuming weight is determined by the logprob of the second token
-                session.execute_write(create_weighted_relationship, token1, token2, weight)
 
 
