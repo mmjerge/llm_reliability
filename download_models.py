@@ -9,8 +9,8 @@ from huggingface_hub import snapshot_download
 
 HUGGINGFACE_MODELS = {
     "meta": {
-        "base": "meta-llama/Llama-2-7b",
-        "large": "meta-llama/Llama-2-70b"
+        "base": "meta-llama/Llama-2-7b-hf",
+        "large": "meta-llama/Llama-2-70b-hf"
     },
     "mistral": {
         "base": "mistralai/Mistral-7B-v0.1"
