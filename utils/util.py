@@ -74,7 +74,7 @@ class BaseAgent(Connection):
         try:
             auth = (self.neo4j_username, self.neo4j_password)
             self.driver = neo4j.GraphDatabase.driver(self.neo4j_uri, auth=auth)
-            return self.driver
+            return self
         except Exception as e:
             # If there is a connection error, this cleans up resources
             if self.driver is not None:
@@ -367,19 +367,21 @@ class GPT35Agent(BaseAgent):
             ON MATCH SET r.weight = $weight
         """, token1=token1, token2=token2, weight=weight)
 
-    def create_graph(self, driver, truthfulqa_tokens_dict):
-        with driver.session() as session:
+    def create_graph(self, truthfulqa_tokens_dict):
+        with self.driver.session() as session:
             tokens_logprobs_list = list(extract_token_logprob_pairs(truthfulqa_tokens_dict))
 
             # Create nodes for each token
             for token, logprob in tokens_logprobs_list:
-                session.execute_write(self.create_token_node, token)
+                session.write_transaction(lambda tx: self.create_token_node(tx, token))
 
             # Create weighted relationships between consecutive tokens
             for i in range(len(tokens_logprobs_list) - 1):
                 token1, _ = tokens_logprobs_list[i]
                 token2, weight = tokens_logprobs_list[i + 1]
-                session.execute_write(self.create_weighted_relationship, token1, token2, weight)              
+                session.write_transaction(lambda tx: self.create_weighted_relationship(tx, token1, token2, weight))
+        print("Graph created.")
+         
 
 class GPT4Agent(BaseAgent):
     #TODO add citation for adaptation of work in https://github.com/patrickrchao/JailbreakingLLMs/blob/main/language_models.py
