@@ -24,7 +24,7 @@ def agent_truthfulqa_responses(dataset_root_path: str, agent_list: list, slice_g
     questions = itertools.chain.from_iterable(read_questions(file) for file in files)
     if slice_generator:
         truthfulqa_responses = {}
-        for question in islice(questions, 5):
+        for question in islice(questions, 1):
             responses = {}
             for agent in agent_list:
                 agent_name = agent.model_name
@@ -62,7 +62,7 @@ def agent_token_logprobs(dataset_root_path: str, agent_list: list, slice_generat
     questions = itertools.chain.from_iterable(read_questions(file) for file in files)
     if slice_generator:
         truthfulqa_tokens_dict = {}
-        for question in islice(questions, 5):
+        for question in islice(questions, 1):
             token_responses = {}
             for agent in agent_list:
                 agent_name = agent.model_name
@@ -80,24 +80,12 @@ def agent_token_logprobs(dataset_root_path: str, agent_list: list, slice_generat
     else: 
         pass
 
-def extract_tokens(data):
-    if isinstance(data, dict):
-        for value in data.values():
-            yield from extract_tokens(value)
-    elif isinstance(data, list):
-        for item in data:
-            if isinstance(item, dict) and len(item) == 1:
-                inner_dict = next(iter(item.values()))
-                if isinstance(inner_dict, dict):
-                    for token in inner_dict.keys():
-                        yield token
-
 def main():
+    sentence = agent_truthfulqa_responses(dataset_root_path, agents, slice_generator=True)
     tokens = agent_token_logprobs(dataset_root_path, agents, slice_generator=True)
-    for token in extract_tokens(tokens):
-        print(token)
-
-        
+    print(sentence)
+    with gpt35 as agent:
+        agent.create_graph(tokens)
 
     # try:
     #     file_path = 'gpt_tokens_logprobs_responses.json'
