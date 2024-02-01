@@ -1,4 +1,5 @@
 import os
+import re
 from abc import ABC, abstractmethod
 import pyarrow.parquet as pq
 import json
@@ -499,7 +500,8 @@ class LlamaBaseAgent(BaseAgent):
                  neo4j_username: str, 
                  neo4j_password: str,
                  cuda_device: str="0",
-                 cache_path: Optional[str]=None) -> None:
+                 cache_path: Optional[str]=None,
+                 use_DDP=False) -> None:
         super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
         self.cuda_device = cuda_device
         self.cache_path = cache_path
@@ -556,7 +558,8 @@ class LlamaLargeAgent(BaseAgent):
                  neo4j_username: str, 
                  neo4j_password: str,
                  cuda_device: str="0",
-                 cache_path: Optional[str]=None) -> None:
+                 cache_path: Optional[str]=None,
+                 use_DDP=False) -> None:
         super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
         self.cuda_device = cuda_device
         self.cache_path = cache_path
@@ -613,7 +616,8 @@ class MicrosoftAgent(BaseAgent):
                  neo4j_username: str, 
                  neo4j_password: str,
                  cuda_device: str="0",
-                 cache_path: Optional[str]=None) -> None:
+                 cache_path: Optional[str]=None,
+                 use_DDP=False) -> None:
         super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
         self.cuda_device = cuda_device
         self.cache_path = cache_path
@@ -624,7 +628,7 @@ class MicrosoftAgent(BaseAgent):
         num_gpus = (lambda: torch.cuda.device_count() if cuda else 0)()
         return device, num_gpus
 
-    def generate_text(self, prompt: str, model_path: str):
+    def generate_text(self, prompt: str, model_path: str, return_raw_outputs=False):
         torch.set_default_device("cuda")
         model = AutoModelForCausalLM.from_pretrained(model_path, 
                                                      torch_dtype="auto", 
@@ -632,9 +636,41 @@ class MicrosoftAgent(BaseAgent):
                                                      cache_dir=self.cache_path)
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         inputs = tokenizer(prompt, return_tensors="pt", return_attention_mask=False)
-        outputs = model.generate(**inputs, max_length=200)
-        text = tokenizer.batch_decode(outputs)[0]
-        return text
+        # If marked true, returns raw outputs, logits, and probabilities
+        if return_raw_outputs:
+            outputs = model.generate(**inputs, 
+                                     max_new_tokens=200, 
+                                     return_dict_in_generate=True, 
+                                     output_scores=True)        
+            transition_scores = model.compute_transition_scores(
+                outputs.sequences,
+                outputs.scores,
+                normalize_logits=True
+            )
+            input_length = inputs.input_ids.shape[1]
+            generated_tokens = outputs.sequences[:, input_length:]
+            for token, score in zip(generated_tokens[0], transition_scores[0]):
+                score_cpu = score.cpu()
+                return token, tokenizer.decode(token), score_cpu.numpy, np.exp(score_cpu.numpy())# List[Dict[int, Dict[str, float]]]
+        else:
+            outputs = model.generate(**inputs, max_length=200)
+            text = tokenizer.batch_decode(outputs)[0]
+            return text
+    
+    def generate_logprobs(self, logits, labels):
+        log_probs = F.log_softmax(logits, dim=-1)
+        logprobs_label = torch.gather(log_probs, 2, labels.unsqueeze(2)).squeeze(-1)
+        return logprobs_label
+    
+    def sequence_logprob(self, model, labels, input_len=0) -> npt.NDArray[np.float64]:
+        with torch.no_grad():
+            output = model(labels)
+            log_probs = self.generate_logprobs(
+                output.logits[:, :-1, :], labels[:, 1:]
+            )
+            seq_log_probs = torch.sum(log_probs[:, input_len:])
+        return seq_log_probs.cpu.numpy()
+    
         # torch.set_default_device("cuda")
         # if self.get_devices()[1] >= 1:
         #     # torch.distributed.init_process_group(backend='nccl')
@@ -670,7 +706,8 @@ class MistralAgent(BaseAgent):
                  neo4j_username: str, 
                  neo4j_password: str,
                  cuda_device: str="0",
-                 cache_path: Optional[str]=None) -> None:
+                 cache_path: Optional[str]=None,
+                 use_DDP=False) -> None:
         super().__init__(model_name, neo4j_uri, neo4j_username, neo4j_password)
         self.cuda_device = cuda_device
         self.cache_path = cache_path
@@ -681,7 +718,7 @@ class MistralAgent(BaseAgent):
         num_gpus = (lambda: torch.cuda.device_count() if cuda else 0)()
         return device, num_gpus
 
-    def generate_text(self, prompt: str, model_path: str):
+    def generate_text(self, prompt: str, model_path: str, return_raw_outputs=False):
         torch.set_default_device("cuda")
         model = AutoModelForCausalLM.from_pretrained(model_path, 
                                                      torch_dtype="auto", 
@@ -689,9 +726,35 @@ class MistralAgent(BaseAgent):
                                                      cache_dir=self.cache_path)
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         inputs = tokenizer(prompt, return_tensors="pt", return_attention_mask=False)
-        outputs = model.generate(**inputs, max_length=200, pad_token_id=tokenizer.eos_token_id)
-        text = tokenizer.batch_decode(outputs)[0]
-        return text
+        outputs = model.generate(**inputs, max_new_tokens=5, return_dict_in_generate=True, output_scores=True)
+        # If marked true, returns raw outputs, logits, and probabilities
+        if return_raw_outputs:
+            transition_scores = model.compute_transition_scores(
+                outputs.sequences,
+                outputs.scores,
+                normalize_logits=True
+            )
+            input_length = inputs.input_ids.shape[1]
+            generated_tokens = outputs.sequences[:, input_length:]
+            for token, score in zip(generated_tokens[0], transition_scores[0]):
+                return token, tokenizer.decode(token), score.numpy, np.exp(score.numpy())
+        else:
+            text = tokenizer.batch_decode(outputs["sequences"])[0]
+            return text
+    
+    def generate_logprobs(self, logits, labels):
+        log_probs = F.log_softmax(logits, dim=-1)
+        logprobs_label = torch.gather(log_probs, 2, labels.unsqueeze(2)).squeeze(-1)
+        return logprobs_label
+    
+    def sequence_logprob(self, model, labels, input_len=0) -> npt.NDArray[np.float64]:
+        with torch.no_grad():
+            output = model(labels)
+            log_probs = self.generate_logprobs(
+                output.logits[:, :-1, :], labels[:, 1:]
+            )
+            seq_log_probs = torch.sum(log_probs[:, input_len:])
+        return seq_log_probs.cpu.numpy()
 
 def read_questions(file, batch_size=1000):
     """_summary_
@@ -713,6 +776,13 @@ def read_questions(file, batch_size=1000):
         table = batch.to_pandas()
         for question in table['question']:
             yield question
+
+def clean_response(text: str) -> str:
+    # Remove lines starting with ##
+    text = re.sub(r'^##.*\n?', '', text, flags=re.MULTILINE)
+    # Remove lines/sentences starting with <s>
+    text = re.sub(r'^<s>.*?\n?', '', text, flags=re.MULTILINE)
+    return text.strip()
         
 def match_model(model):
     match model:
