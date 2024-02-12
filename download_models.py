@@ -20,6 +20,10 @@ HUGGINGFACE_MODELS = {
     }
 }
 
+DATASETS = {
+    "benchmarks": ["truthful_qa", "bigbench", "billsum"]
+}
+
 def main():
     parser = argparse.ArgumentParser(description="Add optional huggingface_hub cache directory.")
 
@@ -51,17 +55,18 @@ def main():
             else:
                 print(f"Model {model_name} {model_size} found; skipping.")
 
-    dataset_download_path = f"./data/truthful_qa"
-
-    if not os.path.exists(dataset_download_path):
-        print(f"Downloading dataset.")
-        snapshot_download(repo_id="truthful_qa",
-                          repo_type="dataset",
-                          local_dir=dataset_download_path,
-                          cache_dir=args.dataset_cache_path)
-        print("Dataset downloaded.")
-    else:
-        print("Dataset already exists.")
+    for category, datasets in DATASETS.items():
+        for dataset in datasets:
+            dataset_download_path = f"./data/{category}/{dataset}"
+            if not os.path.exists(dataset_download_path):
+                print(f"Downloading {dataset} dataset.")
+                snapshot_download(repo_id=dataset,
+                                repo_type="dataset",
+                                local_dir=dataset_download_path,
+                                cache_dir=args.dataset_cache_path)
+                print("Dataset downloaded.")
+            else:
+                print("Dataset already exists.")
 
 if __name__ == "__main__":
     main()
