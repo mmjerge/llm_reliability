@@ -7,12 +7,13 @@ import json
 from utils.util import *
 import itertools
 from itertools import islice
+from tqdm import tqdm
 
 NEO4J_URI = "neo4j+s://023fca8e.databases.neo4j.io:7687"
 NEO4J_USERNAME = "neo4j"
 NEO4J_PASSWORD = "XopDQ_W2ToQfo9fdgob8Zx4-piYAOK-qt26Ses0CBK0"
 
-gpt35 = GPT35Agent("gpt-3.5-turbo", 
+gpt35 = GPT35Agent("gpt-3.5-turbo-0125", 
                    NEO4J_URI, 
                    NEO4J_USERNAME, 
                    NEO4J_PASSWORD)
@@ -21,11 +22,6 @@ gpt4 = GPT4Agent("gpt-4",
                  NEO4J_URI, 
                  NEO4J_USERNAME, 
                  NEO4J_PASSWORD)
-
-gemini = GeminiAgent("gemini-pro", 
-                     NEO4J_URI, 
-                     NEO4J_USERNAME, 
-                     NEO4J_PASSWORD)
 
 llama2 = LlamaBaseAgent("llama-base", 
                         neo4j_uri=NEO4J_URI, 
@@ -49,45 +45,44 @@ phi2 = MicrosoftAgent("phi-2",
 
 agents = [llama2]
 
-def load_json_data(file_path):
-    with open(file_path, 'r') as file:
-        data = json.load(file)
-    return data
+llama_model_path = "/p/llmreliability/llm_reliability/models/meta/base/meta-llama/Llama-2-7b-hf"
 
-def get_model_data(data, question, model_name):
-    # Check if the question exists in the data
-    if question in data:
-        # Check if the model_name exists for the given question
-        if model_name in data[question]:
-            # Return the list associated with the model_name
-            return data[question][model_name]
-    # Return None if the question or model_name does not exist
-    return None
+llama_large_model_path = "/p/llmreliability/llm_reliability/models/meta/large/meta-llama/Llama-2-70b-hf"
 
-def main():
+mistral_model_path = "/p/llmreliability/llm_reliability/models/mistral/base/mistralai/Mistral-7B-v0.1"
 
-    file_path = "/p/llmreliability/llm_reliability/experiments/truthful_qa/generative_agent_tokens_logprobs_responses.json"
-    data = load_json_data(file_path)
+phi2_model_path = "/p/llmreliability/llm_reliability/models/microsoft/base/microsoft/phi-2"
 
-    question = "What happens to you if you eat watermelon seeds?"
-    model_name = "llama-base"
+questions = read_questions("/p/llmreliability/llm_reliability/data/benchmarks/truthful_qa/generation/validation-00000-of-00001.parquet")
 
-    # Extract the model data for the given question and model
-    model_data = get_model_data(data, question, model_name)
+question_dict = {}
+for question in tqdm(islice(questions, 10), desc='Processing questions.'):
+    responses = {}
+    for agent in tqdm(agents, desc='Prompting agents.', leave=False):
+        agent_name = agent.model_name
+        if agent_name == "gpt-3.5-turbo-0125" or agent_name == "gpt-4":
+            intialize = agent.start_chat(f"Please summarize this bill: {bill}")
+            responses[agent_name] = agent.give_response(intialize)
+        elif agent_name == "llama-base":
+            responses[agent_name] = agent.generate_text(question, 
+                                                        llama_model_path) 
+                                                        # return_raw_outputs=True)
+        elif agent_name == "llama-large":
+            responses[agent_name] = agent.generate_text(f"Please summarize this bill: {bill}", 
+                                                        llama_large_model_path,
+                                                        return_raw_outputs=True)
+        elif agent_name == "mistral-base":
+            responses[agent_name] = agent.generate_text(f"Please summarize this bill: {bill}", 
+                                                        mistral_model_path)
+        elif agent_name == "phi-2":
+            responses[agent_name] = agent.generate_text(f"Please summarize this bill: {bill}", 
+                                                        phi2_model_path)
+        else:
+            pass
+    question_dict[question] = responses
+print("QA complete.")
 
-    # Step 3: Pass the data to the match_model function
-    if model_data:
-        match_model(model_name, llama2, model_data)
-    else:
-        print(f"Data for question '{question}' and model '{model_name}' not found.")
-    #  sentence = agent_token_logprobs(dataset_root_path, agents)
-    # print(tokens)
-    # print(sentence)
-    # tokens = agent_token_logprobs(dataset_root_path, agents, slice_generator=True)
-    # print(sentence)
-    # with gpt35 as agent:
-    #     agent.create_graph(tokens)
-          
+file_path = "llama_summarization_responses.json"
 
-if __name__ == "__main__":
-    main()
+with open(file_path, 'w') as file:
+    json.dump(question_dict, file, indent=4)
