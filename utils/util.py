@@ -19,7 +19,7 @@ import neo4j
 import spacy
 from typing import Dict, Union, Optional, List
 from openai import OpenAI
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 import google.generativeai as genai
 from itertools import islice
 
@@ -477,10 +477,16 @@ class GPT35Agent(BaseAgent):
             MERGE (t1)-[r:NEXT]->(t2)
             ON CREATE SET r.weight = $weight, r.model_name = $model_name
             ON MATCH SET r.weight = $weight, r.model_name = $model_name
-        """, token1=token1, token2=token2, weight=weight, model_name = self.model_name)
+        """, token1_id=token1_id, 
+        token1=token1, 
+        token2_id=token2_id, 
+        token2=token2, 
+        weight=weight, 
+        model_name=self.model_name)
 
     def create_graph(self, generative_responses_dict):
         with self.driver.session() as session:
+            
             tokens_logprobs_list = list(extract_token_logprob_pairs(generative_responses_dict))
 
             # Create nodes for each token
@@ -717,12 +723,16 @@ class LlamaBaseAgent(BaseAgent):
                                                      trust_remote_code=True,
                                                      cache_dir=self.cache_path)
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        inputs = tokenizer(prompt, return_tensors="pt", return_attention_mask=False)
+        inputs = tokenizer(prompt, 
+                           add_special_tokens=False, 
+                           truncation=True,
+                           return_tensors="pt", 
+                           return_attention_mask=False)
         if return_raw_outputs:
             outputs = model.generate(**inputs, 
-                                     max_new_tokens=200, 
-                                     return_dict_in_generate=True, 
-                                     output_scores=True)        
+                                    max_new_tokens=200, 
+                                    return_dict_in_generate=True, 
+                                    output_scores=True)        
             transition_scores = model.compute_transition_scores(
                 outputs.sequences,
                 outputs.scores,
@@ -737,9 +747,10 @@ class LlamaBaseAgent(BaseAgent):
                 output_structure.append({index: {token_str: float(logprob)}}) #List[Dict[int, Dict[str, float]]]
             return output_structure
         else:
-            outputs = model.generate(**inputs, max_length=200)
-            text = tokenizer.batch_decode(outputs)[0]
-            return text
+            outputs = model.generate(**inputs, max_new_tokens=512, do_sample=True, temperature=0.5)
+            input_length = inputs.input_ids.shape[1]
+            text = tokenizer.batch_decode(outputs[0], skip_special_tokens=True)[input_length:]
+            return " ".join(text)
     
     def generate_logprobs(self, logits, labels):
         log_probs = F.log_softmax(logits, dim=-1)
@@ -958,12 +969,16 @@ class MicrosoftAgent(BaseAgent):
                                                      trust_remote_code=True,
                                                      cache_dir=self.cache_path)
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        inputs = tokenizer(prompt, return_tensors="pt", return_attention_mask=False)
+        inputs = tokenizer(prompt, 
+                           add_special_tokens=False, 
+                           truncation=True,
+                           return_tensors="pt", 
+                           return_attention_mask=False)
         if return_raw_outputs:
             outputs = model.generate(**inputs, 
-                                     max_new_tokens=200, 
-                                     return_dict_in_generate=True, 
-                                     output_scores=True)        
+                                    max_new_tokens=200, 
+                                    return_dict_in_generate=True, 
+                                    output_scores=True)        
             transition_scores = model.compute_transition_scores(
                 outputs.sequences,
                 outputs.scores,
@@ -978,9 +993,10 @@ class MicrosoftAgent(BaseAgent):
                 output_structure.append({index: {token_str: float(logprob)}}) #List[Dict[int, Dict[str, float]]]
             return output_structure
         else:
-            outputs = model.generate(**inputs, max_length=200)
-            text = tokenizer.batch_decode(outputs)[0]
-            return text
+            outputs = model.generate(**inputs, max_new_tokens=512, do_sample=True, temperature=0.5)
+            input_length = inputs.input_ids.shape[1]
+            text = tokenizer.batch_decode(outputs[0], skip_special_tokens=True)[input_length:]
+            return " ".join(text)
         
     def create_token_node(self, tx, token_id, token):
         """Creates or updates a node that from a token produced by an LLM
@@ -1088,12 +1104,12 @@ class MistralAgent(BaseAgent):
                                                      trust_remote_code=True,
                                                      cache_dir=self.cache_path)
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        inputs = tokenizer(prompt, return_tensors="pt", return_attention_mask=False)
+        inputs = tokenizer(prompt, add_special_tokens=False, return_tensors="pt", return_attention_mask=False)
         if return_raw_outputs:
             outputs = model.generate(**inputs, 
-                                     max_new_tokens=200, 
-                                     return_dict_in_generate=True, 
-                                     output_scores=True)        
+                                    max_new_tokens=200, 
+                                    return_dict_in_generate=True, 
+                                    output_scores=True)        
             transition_scores = model.compute_transition_scores(
                 outputs.sequences,
                 outputs.scores,
@@ -1108,9 +1124,10 @@ class MistralAgent(BaseAgent):
                 output_structure.append({index: {token_str: float(logprob)}}) #List[Dict[int, Dict[str, float]]]
             return output_structure
         else:
-            outputs = model.generate(**inputs, max_length=200)
-            text = tokenizer.batch_decode(outputs)[0]
-            return text
+            outputs = model.generate(**inputs, max_new_tokens=512, do_sample=True, temperature=0.5)
+            input_length = inputs.input_ids.shape[1]
+            text = tokenizer.batch_decode(outputs[0], skip_special_tokens=True)[input_length:]
+            return " ".join(text)
     
     def generate_logprobs(self, logits, labels):
         log_probs = F.log_softmax(logits, dim=-1)
