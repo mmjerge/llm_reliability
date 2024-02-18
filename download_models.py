@@ -21,7 +21,7 @@ HUGGINGFACE_MODELS = {
 }
 
 DATASETS = {
-    "benchmarks": ["truthful_qa", "bigbench", "billsum"]
+    "benchmarks": ["truthful_qa", "bigbench", "billsum", "cnn_dailymail"]
 }
 
 def main():
