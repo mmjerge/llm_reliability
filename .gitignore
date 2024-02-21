@@ -284,3 +284,14 @@ models/meta/large/meta-llama/Llama-2-70b-hf/tokenizer.json
 models/meta/large/meta-llama/Llama-2-70b-hf/tokenizer.model
 models/meta/large/meta-llama/Llama-2-70b-hf/USE_POLICY.md
 run.slurm
+data/benchmarks/bigbench/.gitattributes
+data/benchmarks/bigbench/bigbench.py
+data/benchmarks/bigbench/README.md
+data/benchmarks/billsum/.gitattributes
+data/benchmarks/billsum/README.md
+data/benchmarks/billsum/data/test-00000-of-00001.parquet
+data/benchmarks/billsum/data/train-00000-of-00001.parquet
+data/benchmarks/truthful_qa/.gitattributes
+data/benchmarks/truthful_qa/README.md
+data/benchmarks/truthful_qa/generation/validation-00000-of-00001.parquet
+data/benchmarks/truthful_qa/multiple_choice/validation-00000-of-00001.parquet
