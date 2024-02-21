@@ -53,10 +53,10 @@ mistral_model_path = "/p/llmreliability/llm_reliability/models/mistral/base/mist
 
 phi2_model_path = "/p/llmreliability/llm_reliability/models/microsoft/base/microsoft/phi-2"
 
-questions = read_questions("/p/llmreliability/llm_reliability/data/benchmarks/truthful_qa/generation/validation-00000-of-00001.parquet")
+questions = read_bill("/p/llmreliability/llm_reliability/data/benchmarks/billsum/data/ca_test-00000-of-00001.parquet")
 
-question_dict = {}
-for question in tqdm(islice(questions, 10), desc='Processing questions.'):
+bill_dict = {}
+for bill in tqdm(islice(questions, 10), desc='Processing articles.'):
     responses = {}
     for agent in tqdm(agents, desc='Prompting agents.', leave=False):
         agent_name = agent.model_name
@@ -64,7 +64,7 @@ for question in tqdm(islice(questions, 10), desc='Processing questions.'):
             intialize = agent.start_chat(f"Please summarize this bill: {bill}")
             responses[agent_name] = agent.give_response(intialize)
         elif agent_name == "llama-base":
-            responses[agent_name] = agent.generate_text(question, 
+            responses[agent_name] = agent.generate_text(f"Please summarize the following article. {bill}", 
                                                         llama_model_path) 
                                                         # return_raw_outputs=True)
         elif agent_name == "llama-large":
@@ -75,14 +75,14 @@ for question in tqdm(islice(questions, 10), desc='Processing questions.'):
             responses[agent_name] = agent.generate_text(f"Please summarize this bill: {bill}", 
                                                         mistral_model_path)
         elif agent_name == "phi-2":
-            responses[agent_name] = agent.generate_text(f"Please summarize this bill: {bill}", 
+            responses[agent_name] = agent.generate_text(f"Please summarize the following article. {article}", 
                                                         phi2_model_path)
         else:
             pass
-    question_dict[question] = responses
-print("QA complete.")
+    bill_dict[bill] = responses
+print("Summarization complete.")
 
-file_path = "llama_summarization_responses.json"
+file_path = "llama2_summarization_responses.json"
 
 with open(file_path, 'w') as file:
-    json.dump(question_dict, file, indent=4)
+    json.dump(bill_dict, file, indent=4)

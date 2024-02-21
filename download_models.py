@@ -17,6 +17,9 @@ HUGGINGFACE_MODELS = {
     },
     "microsoft": {
         "base": "microsoft/phi-2"
+    },
+    "vicuna": {
+        "base": "lmsys/vicuna-13b-v1.3"
     }
 }
 

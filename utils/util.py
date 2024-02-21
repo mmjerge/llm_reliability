@@ -723,16 +723,12 @@ class LlamaBaseAgent(BaseAgent):
                                                      trust_remote_code=True,
                                                      cache_dir=self.cache_path)
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        inputs = tokenizer(prompt, 
-                           add_special_tokens=False, 
-                           truncation=True,
-                           return_tensors="pt", 
-                           return_attention_mask=False)
+        inputs = tokenizer(prompt, return_tensors="pt", return_attention_mask=False)
         if return_raw_outputs:
             outputs = model.generate(**inputs, 
-                                    max_new_tokens=200, 
-                                    return_dict_in_generate=True, 
-                                    output_scores=True)        
+                                     max_new_tokens=200, 
+                                     return_dict_in_generate=True, 
+                                     output_scores=True)        
             transition_scores = model.compute_transition_scores(
                 outputs.sequences,
                 outputs.scores,
@@ -747,10 +743,9 @@ class LlamaBaseAgent(BaseAgent):
                 output_structure.append({index: {token_str: float(logprob)}}) #List[Dict[int, Dict[str, float]]]
             return output_structure
         else:
-            outputs = model.generate(**inputs, max_new_tokens=512, do_sample=True, temperature=0.5)
-            input_length = inputs.input_ids.shape[1]
-            text = tokenizer.batch_decode(outputs[0], skip_special_tokens=True)[input_length:]
-            return " ".join(text)
+            outputs = model.generate(**inputs, max_new_tokens=200)
+            text = tokenizer.batch_decode(outputs)[0]
+            return text
     
     def generate_logprobs(self, logits, labels):
         log_probs = F.log_softmax(logits, dim=-1)
@@ -1233,7 +1228,26 @@ def read_bill(file, batch_size=1000):
             for bill in table['text']:
                 yield bill
         else:
-            print("Batch does not contain 'text' column")
+            print("Batch does not contain 'text' column.")
+
+def read_article(file, batch_size=1000):
+    """Function that extracts article from the cnn_dailymail dataset as input to LLM agent
+
+    Parameters
+    ----------
+    file : str
+        CNN_Dailymail Parquet file
+    batch_size : int, optional
+        Number of lines to read, by default 1000
+    """
+    parquet_file = pq.ParquetFile(file)
+    for batch in parquet_file.iter_batches(batch_size=batch_size, columns=['article']):
+        table = batch.to_pandas()
+        if 'article' in table.columns:
+            for article in table['article']:
+                yield article
+        else:
+            print("Batch does not contain 'article' column.")
 
 def clean_response(text: str) -> str:
     """_summary_
