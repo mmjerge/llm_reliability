@@ -1,2 +1,0 @@
-Special tokens have been added in the vocabulary, make sure the associated word embeddings are fine-tuned or trained.
-Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [02:22<02:22, 142.86s/it]Loading checkpoint shards: 100%|██████████| 2/2 [02:37<00:00, 67.26s/it] Loading checkpoint shards: 100%|██████████| 2/2 [02:37<00:00, 78.60s/it]
