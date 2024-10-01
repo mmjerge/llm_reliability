@@ -1,11 +1,11 @@
 # llm-reliability
 UVA SRG LLM Reliability Study
 
-# Reliability Study of Large Language Models Using Inference-Time Techniques
+# Reliability Study of Large Language Models Using Inference-Time Methods
 
 ## Introduction
 
-This repository is dedicated to the study of the reliability of large language models (LLMs) using ensemble techniques. Our aim is to explore how different ensemble methods can enhance the robustness and accuracy of LLMs in diverse applications.
+This repository is dedicated to the study of the reliability of large language models (LLMs) using inferenc-time methods. Our aim is to explore how different ensemble methods can enhance the robustness and accuracy of LLMs in diverse applications.
 
 ## Project Overview
 
