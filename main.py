@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 NEO4J_URI = "neo4j+s://023fca8e.databases.neo4j.io:7687"
 NEO4J_USERNAME = "neo4j"
-NEO4J_PASSWORD = "XopDQ_W2ToQfo9fdgob8Zx4-piYAOK-qt26Ses0CBK0"
+NEO4J_PASSWORD = "null"
 
 gpt35 = GPT35Agent("gpt-3.5-turbo-0125", 
                    NEO4J_URI, 
