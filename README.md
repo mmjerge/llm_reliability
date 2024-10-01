@@ -7,11 +7,15 @@ UVA SRG LLM Reliability Study
 
 This repository is dedicated to the study of the reliability of large language models (LLMs) using inferenc-time methods. The aim is to systematize and evaluate different inference-time methods on diverse models and datasets.
 
-## Project Directory Description
+## Project Description
 
 - **Objective:** To assess and enhance the reliability of LLMs using various ensemble strategies
 - **Methods:** Implementation and comparison of ensemble techniques 
 - **Applications:** Focus on natural language processing tasks such as sentiment analysis, text classification, and question-answering systems
+
+## Directory Description
+
+
 
 ## Repository Structure
 
