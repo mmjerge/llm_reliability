@@ -1,5 +1,8 @@
-# llm-reliability
-UVA SRG LLM Reliability Study
+# LLM-Reliability
+
+LLM Reliability Study.
+
+This repository is still under development.
 
 # Reliability Study of Large Language Models Using Inference-Time Methods
 
