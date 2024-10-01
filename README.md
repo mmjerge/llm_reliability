@@ -1,7 +1,7 @@
 # llm-reliability
 UVA SRG LLM Reliability Study
 
-# Reliability Study of Large Language Models Using Ensemble Techniques
+# Reliability Study of Large Language Models Using Inference-Time Techniques
 
 ## Introduction
 
